@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx"
+			   creationComplete="getCaptcha();"
+			   minWidth="955" minHeight="600">
+	
+	<s:layout>
+		<s:VerticalLayout />
+	</s:layout>
+	
+	<fx:Script>
+		<![CDATA[
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			
+			[Bindable]
+			protected var img:String;
+			[Bindable]
+			protected var message:String;
+			
+			protected var _challenge:String;
+			protected var _response:String;
+			
+			private static const API_SERVER:String		= "http://api.recaptcha.net/";
+			private static const VERIFY_SERVER:String	= "http://yourserver/verify/";
+			private static const PUBLIC_KEY:String		= "yourpublicrecaptchakey";
+
+
+			protected function getCaptcha():void {
+				var s:HTTPService = new HTTPService();
+				
+				responseInput.text = "";
+				
+				s.url = API_SERVER + "challenge?k=" + PUBLIC_KEY;
+				s.resultFormat = HTTPService.RESULT_FORMAT_TEXT;
+				s.addEventListener(ResultEvent.RESULT, function(evt:ResultEvent):void {
+					_challenge = parseData(evt.result as String);
+					img = API_SERVER + "image?c=" + _challenge;
+				});
+				s.addEventListener(FaultEvent.FAULT, function(evt:FaultEvent):void {
+					message = "Error retrieving captcha";
+				});
+				s.send();
+			}
+			
+			protected function validateCaptcha():void {
+				var s:HTTPService = new HTTPService();
+				
+				s.url = VERIFY_SERVER;
+				s.contentType = HTTPService.CONTENT_TYPE_FORM;
+				s.addEventListener(ResultEvent.RESULT, function(evt:ResultEvent):void {
+					message = "You are a human";
+					getCaptcha();
+				});
+				s.addEventListener(FaultEvent.FAULT, function(evt:FaultEvent):void {
+					message = "You are a robot!";
+					getCaptcha();
+				});
+				s.send({'recaptcha_challenge':_challenge, 'recaptcha_response':_response});
+			}
+
+			private function parseData(data:String):String {
+				var challenge:String = "";
+				// look for 'challenge' field
+				var result:Array = data.match(/challenge : '(.*)'/);
+
+				if (null != result) {
+					challenge = result[1];
+				}
+				return challenge;
+			}
+		]]>
+	</fx:Script>
+	
+	<fx:Binding source="responseInput.text" destination="_response" />
+	
+	<mx:Form>
+		<mx:FormItem width="100%">
+			<mx:Image width="300"
+					  height="57"
+					  scaleContent="false"
+					  autoLoad="true"
+					  source="{img}" />
+		</mx:FormItem>
+		<mx:FormItem width="100%">
+			<s:Label text="Type the words:" />
+			<s:TextInput id="responseInput" />
+		</mx:FormItem>
+		<mx:FormItem width="100%"
+					 horizontalAlign="right">
+			<s:Label text="{message}" />
+			<s:HGroup>
+				<s:Button label="Refresh"
+						  click="getCaptcha();" />
+				<s:Button label="I'm a human"
+						  click="validateCaptcha();" />
+			</s:HGroup>
+		</mx:FormItem>
+	</mx:Form>
+</s:Application>
